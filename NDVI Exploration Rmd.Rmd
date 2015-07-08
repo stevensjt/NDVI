@@ -1,0 +1,47 @@
+---
+title: "NDVI Exploration"
+author: "Jens Stevens, Mike Koontz, Chhaya Werner"
+date: "July 8, 2015"
+output: html_document
+---
+Getting slope and aspect data from the internet
+http://pakillo.github.io/R-GIS-tutorial/
+http://www.mikemeredith.net/blog/1212_Data_for_home_range_analysis_in_R.htm#7
+
+
+```{r, include=F}
+library(dismo);library(rgdal)
+```
+```{r}
+e=getData("SRTM", lon=-121,lat=39)
+e.zoom = crop(e, extent(-121.03, -120.5,38.8, 39.08))
+s=terrain(e.zoom,opt="slope",unit="degrees")
+plot(s)
+a=terrain(e.zoom,opt="aspect",unit="degrees")
+plot(a)
+```
+
+These are 90 m pixels from SRTM.
+
+Reclassify aspect into N (340-20) and S (180)
+```{r}
+rcl <- matrix(c(
+  0,  20, 2,  #2 is N-facing
+ 20, 160, NA, #East-facing, not considered
+160, 200, 1,  #1 is S-facing
+200, 340, NA,  #West-facing, not considered
+340, 360, 2), ncol=3, byrow=TRUE)
+rcl
+a.cat = reclassify(a, rcl=rcl)
+#summary(a.cat)
+plot(a.cat)
+```
+
+####Further steps I'm not totally sure how to do:
+-  Subset the pixels in the categorical aspect layer (a.cat) to only those with slope between 10 and 30 degrees. 
+-  Identify "slope pairs", = groups of S-facing pixels (of some minimum number of adjacent pixels, say 10) separated by some minimum distance (say 180 m, or 2 pixels width) from a group of N-facing pixels. 
+    -  This would be either across a river valley or across a ridgetop. A given S-facing pixel group should not be a member of two slope pairs (i.e. for a S-facing pixel group with a river and a N-facing pixel group immediately to its south, and a ridgetop and another N-facing pixel group immediately to its north, we'll have to pick one).
+-  Overlay NDVI layer 
+-  For each slope pair, calculate the mean NDVI for its S-facing pixel group. Subtract from that the mean NDVI for its N-facign pixel group. This negative number will represent the "deficit" in productivity that is attributable to radiation differences between slopes.
+    -  Smaller deficits will represent less water stress (places where precip/soil water availability are high enough to compensate for the increased ET demand on S-facing slopes)
+    -  If we can generate a series of these values across a landscape, we can do some interpolation exercises to generate maps of "productivity deficit" across much larger spatial scales.
